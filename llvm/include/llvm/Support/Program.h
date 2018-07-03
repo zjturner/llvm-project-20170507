@@ -33,11 +33,15 @@ namespace sys {
 #endif
 
 #if defined(_WIN32)
-  typedef unsigned long procid_t; // Must match the type of DWORD on Windows.
-  typedef void *process_t;        // Must match the type of HANDLE on Windows.
+  typedef unsigned long procid_t;   // Must match the type of DWORD on Windows.
+  typedef unsigned long threadid_t; // Must match the type of DWORD on Windows.
+  typedef void *process_t;          // Must match the type of HANDLE on Windows.
+  typedef void *thread_t;           // Must match the type of HANDLE on Windows.
 #else
   typedef pid_t procid_t;
+  typedef pid_t threadid_t;
   typedef procid_t process_t;
+  typedef threadid_t thread_t;
 #endif
 
   /// This struct encapsulates information about a process.
@@ -74,6 +78,15 @@ namespace sys {
   // was changed. Otherwise a platform dependent error is returned.
   std::error_code ChangeStdinToBinary();
   std::error_code ChangeStdoutToBinary();
+
+  enum ProcessLaunchFlags {
+    PLF_None = 0,  // Launch the process using default options.
+    PLF_Trace = 1, // Launch the process in a mode suitable for tracing.  On
+                   // some platforms (e.g. Windows), no further action is
+                   // needed in order to trace all threads of a process.  On
+                   // other platforms, it is the responsibility of the caller
+                   // to attach a tracer to threads other than the main thread.
+  };
 
   /// This function executes the program using the arguments provided.  The
   /// invoked program will inherit the stdin, stdout, and stderr file
@@ -128,8 +141,11 @@ namespace sys {
                             Optional<ArrayRef<StringRef>> Env,
                             ArrayRef<Optional<StringRef>> Redirects = {},
                             unsigned MemoryLimit = 0,
+                            ProcessLaunchFlags Flags = PLF_None,
                             std::string *ErrMsg = nullptr,
                             bool *ExecutionFailed = nullptr);
+
+  threadid_t getThreadIdForThread(thread_t Thread);
 
   /// Return true if the given arguments fit within system-specific
   /// argument length limits.
@@ -199,8 +215,7 @@ namespace sys {
 #if defined(_WIN32)
   /// Given a list of command line arguments, quote and escape them as necessary
   /// to build a single flat command line appropriate for calling CreateProcess
-  /// on
-  /// Windows.
+  /// on Windows.
   std::string flattenWindowsCommandLine(ArrayRef<StringRef> Args);
 #endif
   }

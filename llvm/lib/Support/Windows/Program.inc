@@ -152,7 +152,8 @@ static HANDLE RedirectIO(Optional<StringRef> Path, int fd,
 static bool Execute(ProcessInfo &PI, StringRef Program,
                     ArrayRef<StringRef> Args, Optional<ArrayRef<StringRef>> Env,
                     ArrayRef<Optional<StringRef>> Redirects,
-                    unsigned MemoryLimit, std::string *ErrMsg) {
+                    unsigned MemoryLimit, ProcessLaunchFlags Flags,
+                    std::string *ErrMsg) {
   if (!sys::fs::can_execute(Program)) {
     if (ErrMsg)
       *ErrMsg = "program not executable";
@@ -260,10 +261,12 @@ static bool Execute(ProcessInfo &PI, StringRef Program,
     return false;
   }
 
-  BOOL rc = CreateProcessW(ProgramUtf16.data(), CommandUtf16.data(), 0, 0,
-                           TRUE, CREATE_UNICODE_ENVIRONMENT,
-                           EnvBlock.empty() ? 0 : EnvBlock.data(), 0, &si,
-                           &pi);
+  DWORD LaunchFlags = CREATE_UNICODE_ENVIRONMENT;
+  if (Flags & PLF_Trace)
+    LaunchFlags |= DEBUG_ONLY_THIS_PROCESS;
+  BOOL rc = CreateProcessW(ProgramUtf16.data(), CommandUtf16.data(), 0, 0, TRUE,
+                           LaunchFlags, EnvBlock.empty() ? 0 : EnvBlock.data(),
+                           0, &si, &pi);
   DWORD err = GetLastError();
 
   // Regardless of whether the process got created or not, we are done with
@@ -313,6 +316,7 @@ static bool Execute(ProcessInfo &PI, StringRef Program,
 
   return true;
 }
+
 
 static bool argNeedsQuotes(StringRef Arg) {
   if (Arg.empty())
@@ -369,6 +373,10 @@ std::string sys::flattenWindowsCommandLine(ArrayRef<StringRef> Args) {
   }
 
   return Command;
+}
+
+threadid_t sys::getThreadIdForThread(thread_t Thread) {
+  return ::GetThreadId(Thread);
 }
 
 ProcessInfo sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,

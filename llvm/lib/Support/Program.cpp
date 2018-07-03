@@ -26,7 +26,8 @@ using namespace sys;
 static bool Execute(ProcessInfo &PI, StringRef Program,
                     ArrayRef<StringRef> Args, Optional<ArrayRef<StringRef>> Env,
                     ArrayRef<Optional<StringRef>> Redirects,
-                    unsigned MemoryLimit, std::string *ErrMsg);
+                    unsigned MemoryLimit, ProcessLaunchFlags Flags,
+                    std::string *ErrMsg);
 
 int sys::ExecuteAndWait(StringRef Program, ArrayRef<StringRef> Args,
                         Optional<ArrayRef<StringRef>> Env,
@@ -35,7 +36,8 @@ int sys::ExecuteAndWait(StringRef Program, ArrayRef<StringRef> Args,
                         std::string *ErrMsg, bool *ExecutionFailed) {
   assert(Redirects.empty() || Redirects.size() == 3);
   ProcessInfo PI;
-  if (Execute(PI, Program, Args, Env, Redirects, MemoryLimit, ErrMsg)) {
+  if (Execute(PI, Program, Args, Env, Redirects, MemoryLimit, PLF_None,
+              ErrMsg)) {
     if (ExecutionFailed)
       *ExecutionFailed = false;
     ProcessInfo Result = Wait(
@@ -52,13 +54,13 @@ int sys::ExecuteAndWait(StringRef Program, ArrayRef<StringRef> Args,
 ProcessInfo sys::ExecuteNoWait(StringRef Program, ArrayRef<StringRef> Args,
                                Optional<ArrayRef<StringRef>> Env,
                                ArrayRef<Optional<StringRef>> Redirects,
-                               unsigned MemoryLimit, std::string *ErrMsg,
-                               bool *ExecutionFailed) {
+                               unsigned MemoryLimit, ProcessLaunchFlags Flags,
+                               std::string *ErrMsg, bool *ExecutionFailed) {
   assert(Redirects.empty() || Redirects.size() == 3);
   ProcessInfo PI;
   if (ExecutionFailed)
     *ExecutionFailed = false;
-  if (!Execute(PI, Program, Args, Env, Redirects, MemoryLimit, ErrMsg))
+  if (!Execute(PI, Program, Args, Env, Redirects, MemoryLimit, Flags, ErrMsg))
     if (ExecutionFailed)
       *ExecutionFailed = true;
 

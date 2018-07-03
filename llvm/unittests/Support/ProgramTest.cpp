@@ -208,8 +208,8 @@ TEST_F(ProgramEnvTest, TestExecuteNoWait) {
 
   std::string Error;
   bool ExecutionFailed;
-  ProcessInfo PI1 = ExecuteNoWait(Executable, argv, getEnviron(), {}, 0, &Error,
-                                  &ExecutionFailed);
+  ProcessInfo PI1 = ExecuteNoWait(Executable, argv, getEnviron(), {}, 0,
+                                  PLF_None, &Error, &ExecutionFailed);
   ASSERT_FALSE(ExecutionFailed) << Error;
   ASSERT_NE(PI1.Pid, ProcessInfo::InvalidPid) << "Invalid process id";
 
@@ -227,8 +227,8 @@ TEST_F(ProgramEnvTest, TestExecuteNoWait) {
 
   EXPECT_EQ(LoopCount, 1u) << "LoopCount should be 1";
 
-  ProcessInfo PI2 = ExecuteNoWait(Executable, argv, getEnviron(), {}, 0, &Error,
-                                  &ExecutionFailed);
+  ProcessInfo PI2 = ExecuteNoWait(Executable, argv, getEnviron(), {}, 0,
+                                  PLF_None, &Error, &ExecutionFailed);
   ASSERT_FALSE(ExecutionFailed) << Error;
   ASSERT_NE(PI2.Pid, ProcessInfo::InvalidPid) << "Invalid process id";
 
@@ -287,8 +287,8 @@ TEST(ProgramTest, TestExecuteNegative) {
   {
     std::string Error;
     bool ExecutionFailed;
-    ProcessInfo PI = ExecuteNoWait(Executable, argv, llvm::None, {}, 0, &Error,
-                                   &ExecutionFailed);
+    ProcessInfo PI = ExecuteNoWait(Executable, argv, llvm::None, {}, 0,
+                                   PLF_None, &Error, &ExecutionFailed);
     ASSERT_EQ(PI.Pid, ProcessInfo::InvalidPid)
         << "On error ExecuteNoWait should return an invalid ProcessInfo";
     ASSERT_TRUE(ExecutionFailed);
