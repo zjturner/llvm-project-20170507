@@ -1,5 +1,6 @@
-REQUIRES: system-windows
-RUN: clang-cl /Zi %S/Inputs/UdtLayoutTest.cpp /o %t.exe
+REQUIRES: system-windows, lld
+RUN: %clang_cl /Zi %S/Inputs/UdtLayoutTest.cpp /c /o %t.obj
+RUN: lld-link /DEBUG:FULL /nodefaultlib /entry:main /out:%t.exe %t.obj 
 RUN: %lldb -b -s %S/Inputs/UdtLayoutTest.script -- %t.exe | FileCheck %s
 
 CHECK:(int) int C::abc = 123

@@ -34,32 +34,10 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.lldb_obj_root, 'lit')
 
-# Tweak the PATH to include the tools dir.
-llvm_config.with_system_environment('PATH')
-llvm_config.with_environment('PATH', config.lldb_tools_dir, append_path=True)
-llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
-
-llvm_config.with_environment('LD_LIBRARY_PATH', config.lldb_libs_dir, append_path=True)
-llvm_config.with_environment('LD_LIBRARY_PATH', config.llvm_libs_dir, append_path=True)
-llvm_config.with_system_environment('LD_LIBRARY_PATH', append_path=True)
-
 
 llvm_config.use_default_substitutions()
 
-if platform.system() in ['Darwin']:
-    debugserver = lit.util.which('debugserver', config.lldb_tools_dir)
-else:
-    debugserver = lit.util.which('lldb-server', config.lldb_tools_dir)
-lldb = "%s -S %s/lit-lldb-init" % (lit.util.which('lldb', config.lldb_tools_dir),
-                               config.test_source_root)
-
-lldbmi = lit.util.which('lldb-mi', config.lldb_tools_dir)
-if lldbmi:
-    config.available_features.add('lldb-mi')
-
-config.cc = llvm_config.use_llvm_tool(config.cc, required=True)
-config.cxx = llvm_config.use_llvm_tool(config.cxx, required=True)
-
+flags = []
 if platform.system() in ['Darwin']:
     try:
         out = subprocess.check_output(['xcrun', '--show-sdk-path']).strip()
@@ -69,44 +47,47 @@ if platform.system() in ['Darwin']:
     if res == 0 and out:
         sdk_path = lit.util.to_string(out)
         lit_config.note('using SDKROOT: %r' % sdk_path)
-        config.cc += " -isysroot %s" % sdk_path
-        config.cxx += " -isysroot %s" % sdk_path
+        flags = ['-isysroot', sdk_path]
+elif platform.system() in ['OpenBSD']:
+    flags = ['-pthread']
 
-if platform.system() in ['OpenBSD']:
-    config.cc += " -pthread"
-    config.cxx += " -pthread"
+# Set up substitutions for primary tools.  These tools must come from config.lldb_tools_dir
+# which is basically the build output directory.  We do not want to find these in path or
+# anywhere else, since they are specifically the programs which are actually being tested.
 
-config.substitutions.append(('%cc', config.cc))
-config.substitutions.append(('%cxx', config.cxx))
+dsname = 'debugserver' if platform.system() in ['Darwin'] else 'lldb-server'
+dsargs = [] if platform.system() in ['Darwin'] else ['gdbserver']
+lldbmi = ToolSubst('%lldbmi', command=FindTool('lldb-mi'), extra_args=['--synchronous'], unresolved='ignore')
+primary_tools = [
+    ToolSubst('%lldb', command=FindTool('lldb'), extra_args=['-S', os.path.join(config.test_source_root, 'lit-lldb-init')]),
+    lldbmi,
+    ToolSubst('%debugserver', command=FindTool(dsname), extra_args=dsargs, unresolved='ignore'),
+    'lldb-test'
+    ]
 
-if lldbmi:
-  config.substitutions.append(('%lldbmi', lldbmi + " --synchronous"))
-config.substitutions.append(('%lldb', lldb))
+llvm_config.add_tool_substitutions(primary_tools, [config.lldb_tools_dir])
+if lldbmi.was_resolved:
+    config.available_features.add('lldb-mi')
 
-if debugserver is not None:
-    if platform.system() in ['Darwin']:
-        config.substitutions.append(('%debugserver', debugserver))
-    else:
-        config.substitutions.append(('%debugserver', debugserver + ' gdbserver'))
+# Set up substitutions for support tools.  These tools can be overridden at the CMake
+# level (by specifying -DLLDB_LIT_TOOLS_DIR), installed, or as a last resort, we can use
+# the just-built version.
+additional_tool_dirs=[]
+if config.lldb_lit_tools_dir:
+    additional_tool_dirs.append(config.lldb_lit_tools_dir)
 
-tools = ['lldb-test', 'yaml2obj', 'obj2yaml', 'llvm-pdbutil']
-llvm_config.add_tool_substitutions(tools, [config.llvm_tools_dir, config.lldb_tools_dir])
+llvm_config.use_clang(additional_flags=flags, additional_tool_dirs=additional_tool_dirs, required=True)
+if config.have_lld:
+    llvm_config.use_lld(additional_tool_dirs=additional_tool_dirs, required=True)
+    config.available_features.add('lld')
+
+
+support_tools = ['yaml2obj', 'obj2yaml', 'llvm-pdbutil', 'llvm-mc', 'llvm-readobj', 'llvm-objdump', 'llvm-objcopy']
+llvm_config.add_tool_substitutions(support_tools,
+                                   additional_tool_dirs + [config.lldb_tools_dir, config.llvm_tools_dir])
 
 if re.match(r'^arm(hf.*-linux)|(.*-linux-gnuabihf)', config.target_triple):
     config.available_features.add("armhf-linux")
-
-print("config.cc = {}".format(config.cc))
-if re.match(r'icc', config.cc):
-    config.available_features.add("compiler-icc")
-elif re.match(r'clang', config.cc):
-    config.available_features.add("compiler-clang")
-elif re.match(r'gcc', config.cc):
-    config.available_features.add("compiler-gcc")
-elif re.match(r'cl', config.cc):
-    config.available_features.add("compiler-msvc")
-
-if config.have_lld:
-  config.available_features.add("lld")
 
 def calculate_arch_features(arch_string):
     # This will add a feature such as x86, arm, mips, etc for each built
